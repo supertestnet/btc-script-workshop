@@ -5,10 +5,7 @@ Basic demonstration of an oracle-based smart contract using bitcoin script, with
 https://tinyurl.com/btc-script-workshop/
 
 # How to use
-Open oracle.html in your favorite browser. Open TWO copies of players.html in TWO DIFFERENT BROWSERS. Then open the developer console (ctrl+shift+i on chrome and firefox) in each copy of players.html. Click Play in both and follow the instructions.
-
-Live demo available here:
-https://supertestnet.github.io/btc-script-workshop
+Open [oracle.html](https://supertestnet.github.io/btc-script-workshop/oracle.html) in your favorite browser. Open TWO copies of players.html ([copy 1](https://supertestnet.github.io/btc-script-workshop/players.html), [copy 2](https://supertestnet.github.io/btc-script-workshop/players.html)) in TWO DIFFERENT BROWSERS. Then open the developer console (ctrl+shift+i on chrome and firefox) in each copy of players.html. Click Play in both and follow the instructions.
 
 # Resources
 Nick Szabo, “Smart Contracts: Building Blocks for Digital Markets,” 1996, https://www.fon.hum.uva.nl/rob/Courses/InformationInSpeech/CDROM/Literature/LOTwinterschool2006/szabo.best.vwh.net/smart_contracts_2.html

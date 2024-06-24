@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, user-scalable=no">
+    <!-- ... -->
+    <meta charset="UTF-8">
+        <script src="https://unpkg.com/@cmdcode/tapscript@1.4.0"></script>
+        <script src="https://bundle.run/noble-secp256k1@1.2.14"></script>
+        <script>
+        var $ = document.querySelector.bind( document );
+        var $$ = document.querySelectorAll.bind( document );
+        var network = "testnet";
+        var bytesToHex = bytes => bytes.reduce( ( str, byte ) => str + byte.toString( 16 ).padStart( 2, "0" ), "" );
+    </script>
+    <script>
+        var getVin = ( txid, vout, amnt, addy, sequence ) => ({
+            txid,
+            vout,
+            prevout: {
+                value: amnt,
+                scriptPubKey: tapscript.Address.toScriptPubKey(addy),
+            },
+        });
+        var getVout = ( amnt, addy ) => ({
+            value: amnt,
+            scriptPubKey: tapscript.Address.toScriptPubKey(addy),
+        });
+    </script>
+    <style>
+        * {box-sizing: border-box; font-size: 1.15rem; font-family: Arial, sans-serif;}
+        html {max-width: 800px; padding: 3rem 1rem; margin: auto; line-height: 1.25; padding: 0;}
+        body {margin: 3rem 1rem; word-wrap: break-word;}
+        h1 {font-size: 2rem;}
+    </style>
+</head>
+<body>
+    <h1>Welcome to ballgame contract</h1>
+    <p>Your address is <span class="player_address"></span></p>
+    <p><button class="play_btn">Play</button></p>
+    <script>
+        // generate a keypair and bitcoin address
+        var privkey = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() );
+        var pubkey = nobleSecp256k1.getPublicKey( privkey, true ).substring( 2 );
+        var player_address = tapscript.Address.p2tr.fromPubKey( pubkey, network );
+        $( '.player_address' ).innerText = player_address;
+        console.log( `your address is ${player_address}` );
+    </script>
+    <script>
+        // prepare the play button
+        $( '.play_btn' ).onclick = async () => {
+            // get your opponent's address
+            var opponent_address = prompt( `enter your opponent's address (if they can't see it, tell them to go to their browser console and scroll all the way to the top, there's a copy there)` );
+            var opponent_pubkey = tapscript.Address.toScriptPubKey( opponent_address )[ 1 ];
+            // get the game info from the oracle
+            var packers_hash = prompt( `enter the packers hash` );
+            var saints_hash = prompt( `enter the saints hash` );
+            // fund this app
+            var txid = prompt( `send money to your address (if you can't see it, go to your browser console and scroll all the way to the top, there's a copy there) and enter the txid of the transaction in which you did that` );
+            var vout = Number( prompt( `and the vout` ) );
+            var amnt = Number( prompt( `and the amount` ) );
+            // put the public keys in the right order
+            var betting_on_packers = confirm( `click ok if you are betting on the packers, otherwise click cancel` );
+            if ( betting_on_packers ) var keys = [ pubkey, opponent_pubkey ];
+            else var keys = [ opponent_pubkey, pubkey ];
+            // prepare the smart contract
+            var contract = [
+                [
+                    "OP_RIPEMD160", packers_hash, "OP_EQUALVERIFY",
+                    keys[ 0 ], "OP_CHECKSIG",
+                ],
+                [
+                    "OP_RIPEMD160", saints_hash, "OP_EQUALVERIFY",
+                    keys[ 1 ], "OP_CHECKSIG",
+                ],
+            ];
+            // turn the smart contract into a bitcoin address
+            var backup_pubkey = "ab".repeat( 32 );
+            var taptree = contract.map( s => tapscript.Tap.encodeScript( s ) );
+            var [ tpubkey ] = tapscript.Tap.getPubKey( backup_pubkey, { tree: taptree });
+            var contract_address = tapscript.Address.p2tr.fromPubKey( tpubkey, network );
+            console.log( `contract_address:`, contract_address );
+            console.log( `send this data to your opponent` );
+            console.log( JSON.stringify({
+                txid: txid,
+                vout: vout,
+                amnt: amnt,
+                player_address: player_address,
+                contract_address: contract_address,
+            }) );
+            alert( `wait for your opponent to catch up to this step. When you are both at this step, click ok. There should be data in your browser console for you to give them in the next step.` );
+            // validate utxo data from your opponent
+            var opponent_info = JSON.parse( prompt( `enter the data sent to you by your opponent` ) );
+            if ( contract_address != opponent_info[ "contract_address" ] ) return alert( `Your opponent produced a different smart contract than you did, which means one of three things went wrong: one of you entered the other's pubkey incorrectly, one of you entered the hashes incorrectly, or both of you accidentally bet on the same team. Please refresh the page and try again` );
+            var opponent_txid = opponent_info[ "txid" ];
+            var opponent_vout = opponent_info[ "vout" ];
+            var opponent_amnt = opponent_info[ "amnt" ];
+            var opponent_address = opponent_info[ "player_address" ];
+            if ( opponent_amnt != amnt ) alert( `Your opponent wants to bet a different amount than you, specifically, they are betting ${opponent_amnt} sats while you are betting ${amnt} sats. Click ok if this is what you want, otherwise refresh the page and try again` );
+            var txdata = tapscript.Tx.create({
+                vin: [
+                    getVin( opponent_txid, opponent_vout, opponent_amnt, opponent_address ),
+                    getVin( txid, vout, amnt, player_address ),
+                ],
+                vout: [getVout( amnt + opponent_amnt - 500, contract_address )],
+            });
+            // come to consensus on the order of inputs -- that is,
+            // whoever bet on the packers gets the first input
+            var my_vin = 1;
+            if ( betting_on_packers ) {
+                txdata.vin.reverse();
+                my_vin = 0;
+            }
+            // sign the funding transaction
+            var sig = tapscript.Signer.taproot.sign( privkey, txdata, my_vin ).hex;
+            // if you are betting on the packers, get your opponent's
+            // sig, add both sigs to the funding tx, and broadcast it
+            if ( betting_on_packers ) {
+                var opponent_sig = prompt( `enter your opponent's sig` );
+                txdata.vin[ 0 ].witness = [ sig ];
+                txdata.vin[ 1 ].witness = [ opponent_sig ];
+                console.log( `broadcast this transaction:` );
+                console.log( tapscript.Tx.encode( txdata ).hex );
+                alert( `broadcast the tx in your browser console.` );
+            } else {
+                console.log( `send this signature to your opponent:` );
+                console.log( sig );
+                alert( `send your opponent the sig in your console` );
+            }
+            // settle the smart contract
+            var contract_txid = tapscript.Tx.util.getTxid( txdata );
+            var contract_vout = 0;
+            var contract_amnt = amnt + opponent_amnt - 500;
+            var i_won = confirm( `Click ok if your team won` );
+            if ( !i_won ) {
+                alert( `So sad! Your opponent gets the money. Consider refreshing the page to play again` );
+            } else {
+                // prepare the settlement transaction
+                var destination_address = prompt( `you won! Enter a bitcoin address where you want to send the money` );
+                var my_tapleaf = Number( !betting_on_packers );
+                var preimage = prompt( `Enter the preimage revealed by the oracle` );
+                var settlement_txdata = tapscript.Tx.create({
+                    vin: [getVin( contract_txid, contract_vout, contract_amnt, contract_address )],
+                    vout: [getVout( contract_amnt - 500, destination_address )],
+                });
+                // sign and broadcast the settlement transaction
+                var target = tapscript.Tap.encodeScript( contract[ my_tapleaf ] );
+                var sig = tapscript.Signer.taproot.sign( privkey, settlement_txdata, 0, { extension: target });
+                var [ _, cblock ] = tapscript.Tap.getPubKey( backup_pubkey, { tree: taptree, target });
+                settlement_txdata.vin[ 0 ].witness = [ sig, preimage, contract[ my_tapleaf ], cblock ];
+                console.log( `broadcast this transaction:` );
+                console.log(tapscript.Tx.encode(settlement_txdata).hex);
+                alert( `broadcast the tx in your browser console. The game is done! Consider refreshing the page to play again` );
+            }
+        }
+    </script>
+</body>
+</html>

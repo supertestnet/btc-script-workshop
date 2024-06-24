@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, user-scalable=no">
+    <meta charset="UTF-8">
+    <script src="https://unpkg.com/@dashincubator/ripemd160/ripemd160.js"></script>
+    <script>
+        var $ = document.querySelector.bind( document );
+        var $$ = document.querySelectorAll.bind( document );
+        var getPreimage = () => window.crypto.getRandomValues( new Uint8Array( 20 ) );
+        var getHash = b => RIPEMD160.create().update( b ).digest();
+        var bytesToHex = bytes => bytes.reduce( ( str, byte ) => str + byte.toString( 16 ).padStart( 2, "0" ), "" );
+    </script>
+    <style>
+        * {box-sizing: border-box; font-size: 1.15rem; font-family: Arial, sans-serif;}
+        html {max-width: 800px; padding: 3rem 1rem; margin: auto; line-height: 1.25; padding: 0;}
+        body {margin: 3rem 1rem;}
+        h1 {font-size: 2rem;}
+        .hidden {display: none !important;}
+        .center {text-align: center;}
+        .bold {font-weight: bold;}
+        .oracle_only {border: 4px dotted black;border-radius: 1rem;padding: 1rem;}
+    </style>
+</head>
+<body>
+    <body>
+        <h1>I am the oracle</h1>
+        <p>After an upcoming game between the Packers and the Saints, I will reveal the preimage to one of these RipeMD160 hashes.</p>
+        <p class="center bold">The Packers Hash</p>
+        <p class="packers_hash center"></p>
+        <p class="center bold">The Saints Hash</p>
+        <p class="saints_hash center"></p>
+        <!-- ... -->
+        <div class="oracle_only center">
+            <p>Note: don't look unless you are the oracle!</p>
+            <p><button class="packers_won">Packers won</button> <button class="saints_won">Saints won</button></p>
+            <div class="packers hidden">
+                <p>The packers preimage is:</p>
+                <p class="packers_preimage"></p>
+            </div>
+            <div class="saints hidden">
+                <p>The saints preimage is:</p>
+                <p class="saints_preimage"></p>
+            </div>
+        </div>
+            <script>
+             $( '.packers_won' ).onclick = () => {$( '.packers' ).classList.remove( "hidden" );$( '.saints' ).classList.add( "hidden" );}; $( '.saints_won' ).onclick = () => {$( '.packers' ).classList.add( "hidden" );$( '.saints' ).classList.remove( "hidden" );}; var packers_preimage = getPreimage(); var packers_hash = getHash( packers_preimage ); $('.packers_hash').innerText = bytesToHex(packers_hash); $( '.packers_preimage' ).innerText = bytesToHex( packers_preimage ); var saints_preimage = getPreimage(); var saints_hash = getHash( saints_preimage ); $('.saints_hash').innerText = bytesToHex(saints_hash); $( '.saints_preimage' ).innerText = bytesToHex( saints_preimage );
+            </script>
+    </body>
+</body>
+</html>
